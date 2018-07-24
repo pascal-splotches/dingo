@@ -18,6 +18,9 @@ import "github.com/miekg/dns"
 import "time"
 import "github.com/patrickmn/go-cache"
 import "math/rand"
+import "github.com/coreos/go-systemd/daemon"
+import "os/signal"
+import "syscall"
 
 /**********************************************************************/
 
@@ -171,9 +174,30 @@ func main() {
 	uc, err := net.ListenUDP("udp", &laddr)
 	if err != nil { die(err) }
 
+	/* notify systemd we are ready */
+	daemon.SdNotify(false, daemon.SdNotifyReady)
+
 	/* start workers */
 	for _, mod := range Modules { mod.Start() }
 
+	/* listen for signals */
+	signals := make(chan os.Signal, 1)
+	
+	signal.Notify(signals, syscall.SIGTERM)
+	
+	go func() {
+		for {
+			s := <-signals
+			
+			switch s {
+			case syscall.SIGTERM:
+				daemon.SdNotify(false, daemon.SdNotifyStopping)
+				uc.Close()
+				os.Exit(0)
+			}
+		}
+	}()
+	
 	/* accept new connections forever */
 	dbg(1, "dingo ver. 0.13 listening on %s UDP port %d", *opt_bindip, laddr.Port)
 	var buf []byte
