@@ -1,0 +1,9 @@
+[Unit]
+Description=Dingo DNS over HTTPS server
+
+[Service]
+Type=notify
+ExecStart=/usr/local/sbin/dingo -port 5353 -gdns:auto
+
+[Install]
+WantedBy=network.target
